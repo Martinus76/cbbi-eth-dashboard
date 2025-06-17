@@ -3,16 +3,13 @@ import matplotlib.pyplot as plt
 import requests
 from datetime import datetime, timedelta
 
-# -- Konfiguracja interfejsu --
 st.set_page_config(page_title="CBBI-ETH Dashboard", layout="centered")
 st.title("📊 CBBI-ETH Dashboard")
 
 # -- Pobieranie danych ETH z CoinGecko --
 @st.cache_data(ttl=900)
 def fetch_eth_data():
-    end_date = datetime.today()
-    start_date = end_date - timedelta(days=90)
-    url = f"https://api.coingecko.com/api/v3/coins/ethereum/market_chart"
+    url = "https://api.coingecko.com/api/v3/coins/ethereum/market_chart"
     params = {
         "vs_currency": "usd",
         "days": "90",
@@ -27,52 +24,42 @@ def fetch_eth_data():
 timestamps, prices = fetch_eth_data()
 
 # -- Obliczanie wskaźnika CBBI-ETH --
-def calculate_cbbi_eth(prices):
-    max_price = max(prices)
-    min_price = min(prices)
-    latest_price = prices[-1]
+def calculate_cbbi_eth(price_history):
+    min_price = min(price_history)
+    max_price = max(price_history)
+    current_price = price_history[-1]
     if max_price == min_price:
         return 0
-    score = (latest_price - min_price) / (max_price - min_price) * 100
-    return round(score, 2)
+    return round((current_price - min_price) / (max_price - min_price) * 100, 2)
 
-# -- Obliczanie wskaźników CBBI-ETH w czasie --
 cbbi_scores = []
 for i in range(len(prices)):
-    sub_prices = prices[:i + 1]
-    if len(sub_prices) > 1:
-        cbbi_scores.append(calculate_cbbi_eth(sub_prices))
-    else:
-        cbbi_scores.append(0)
+    history = prices[:i+1]
+    cbbi_scores.append(calculate_cbbi_eth(history))
 
-# -- Główna wartość wskaźnika --
-score = calculate_cbbi_eth(prices)
-st.metric("📈 Aktualny wskaźnik CBBI-ETH", f"{score}/100")
+current_score = cbbi_scores[-1]
+st.metric("📈 CBBI-ETH", f"{current_score}/100")
 
-# -- Wykres z dwiema osiami: cena i wskaźnik --
+# -- Wykres z dwiema osiami: cena ETH + wskaźnik CBBI-ETH --
 fig, ax1 = plt.subplots()
 
-color = 'tab:blue'
+color = "tab:blue"
 ax1.set_xlabel("Data")
-ax1.set_ylabel("Cena ETH [USD]", color=color)
-ax1.plot(timestamps, prices, color=color, label="Cena ETH")
+ax1.set_ylabel("Cena ETH (USD)", color=color)
+ax1.plot(timestamps, prices, color=color, label="ETH")
 ax1.tick_params(axis='y', labelcolor=color)
 
 ax2 = ax1.twinx()
-color = 'tab:red'
+color = "tab:red"
 ax2.set_ylabel("CBBI-ETH [%]", color=color)
-ax2.plot(timestamps, cbbi_scores, color=color, linestyle='--', label="CBBI-ETH")
+ax2.plot(timestamps, cbbi_scores, color=color, linestyle="--", label="CBBI-ETH")
 ax2.tick_params(axis='y', labelcolor=color)
 
 fig.tight_layout()
 st.pyplot(fig)
 
-# -- Alert e-mailowy (na przyszłość – tu tylko konsola) --
-def check_and_alert(score):
-    if score > 80:
-        st.warning("📤 Alert: CBBI-ETH przekroczył 80 – rozważ sprzedaż!")
-    elif score < 20:
-        st.success("📥 Alert: CBBI-ETH poniżej 20 – rozważ zakup!")
-
-check_and_alert(score)
-update with cbbi chart
+# -- Alerty --
+if current_score > 80:
+    st.warning("🔺 CBBI-ETH powyżej 80 – rozważ sprzedaż")
+elif current_score < 20:
+    st.success("🟢 CBBI-ETH poniżej 20 – rozważ zakup")
